@@ -1,0 +1,24 @@
+# build output
+/firecracker-broker
+*.test
+*.out
+
+# coverage / profiles
+coverage.*
+*.prof
+
+# local secrets — never commit tokens or keys
+.env
+*.env
+token
+*.token
+*.key
+
+# editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# tooling caches
+.v2c/

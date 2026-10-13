@@ -1,0 +1,109 @@
+# firecracker-broker microVM demo transcript
+# owner: zcode-demo-sub1
+# date: 2026-10-13
+
+$ export MICROVMS_TOKEN="$(cat ~/.firecracker-broker/token)" && ./firecracker-broker capacity
+{
+  "max_vms": 20,
+  "existing_vms": 0,
+  "running_vms": 0,
+  "max_vcpus_per_vm": 4,
+  "max_mem_mib_per_vm": 2048,
+  "free_host_mem_mib": 12658,
+  "free_host_cpus": 4
+}
+
+$ scripts/agent-vm.sh up zcode-demo-sub1 example 30m
+scripts/agent-vm.sh: line 72: firecracker-broker: command not found
+
+$ BROKER=./firecracker-broker scripts/agent-vm.sh up zcode-demo-sub1 example 30m
+VM 609be1ea4021ab41 (zcode-demo-sub1-example) is up for owner 'zcode-demo-sub1', ttl 30m
+id:     609be1ea4021ab41
+ssh:    root@192.168.0.118:2200
+key:    /home/Adeel/.firecracker-broker/keys/609be1ea4021ab41.key
+record: /home/Adeel/.firecracker-broker/instances/609be1ea4021ab41.env
+
+$ scripts/agent-vm.sh run 609be1ea4021ab41 'uname -a; echo; nproc; echo; free -m | head -2; echo; head -2 /etc/os-release'
+waiting for sshd on zcode-demo-sub1-example (192.168.0.118:2200)...
+Linux zcode-demo-sub1-example 6.1.102 #1 SMP PREEMPT_DYNAMIC Wed Oct  2 16:39:17 UTC 2024 x86_64 Linux
+
+1
+
+              total        used        free      shared  buff/cache   available
+Mem:            233          15         204           1          13         208
+
+NAME="Alpine Linux"
+ID=alpine
+
+$ scripts/agent-vm.sh run 609be1ea4021ab41 '{
+echo "vm-report (built inside the VM)"
+echo "hostname: $(hostname)"
+echo "kernel:  $(uname -r)"
+echo "cpus:    $(nproc)"
+echo
+echo "task a) count primes below 5000"
+awk '\''BEGIN{for(n=2;n<5000;n++){p=1;for(d=2;d*d<=n;d++)if(n%d==0){p=0;break}if(p)c++}print c" primes below 5000"}'\''
+echo
+echo "task b) C compiler check"
+ccs="$(command -v cc gcc 2>/dev/null || true)"
+echo "command -v cc gcc -> ${ccs:-<none>}"
+cc=""
+for c in cc gcc; do
+  p="$(command -v "$c" 2>/dev/null || true)"
+  [ -n "$p" ] && cc="$p" && break
+done
+if [ -n "$cc" ]; then
+  echo "compiler: $cc"
+  printf "%s\n" "#include <stdio.h>" "int main(void){printf(\"hello from inside the microVM\n\");return 0;}" > /tmp/hello.c
+  if "$cc" /tmp/hello.c -o /tmp/hello 2>&1; then
+    echo "hello.c output: $(/tmp/hello)"
+  else
+    echo "compilation failed"
+  fi
+else
+  echo "no C compiler available"
+fi
+} > /tmp/vm-report.txt 2>&1
+cat /tmp/vm-report.txt'
+waiting for sshd on zcode-demo-sub1-example (192.168.0.118:2200)...
+vm-report (built inside the VM)
+hostname: zcode-demo-sub1-example
+kernel:  6.1.102
+cpus:    1
+
+task a) count primes below 5000
+669 primes below 5000
+
+task b) C compiler check
+command -v cc gcc -> <none>
+no C compiler available
+
+$ scripts/agent-vm.sh get 609be1ea4021ab41 /tmp/vm-report.txt ./examples/vm-report.txt
+
+$ cat ./examples/vm-report.txt
+vm-report (built inside the VM)
+hostname: zcode-demo-sub1-example
+kernel:  6.1.102
+cpus:    1
+
+task a) count primes below 5000
+669 primes below 5000
+
+task b) C compiler check
+command -v cc gcc -> <none>
+no C compiler available
+
+$ export MICROVMS_TOKEN="$(cat ~/.firecracker-broker/token)" && ./firecracker-broker list --owner zcode-demo-sub1
+ID                 NAME                      STATE     OWNER             AGE   IP              SSH_PORT
+609be1ea4021ab41   zcode-demo-sub1-example   running   zcode-demo-sub1   4m    172.16.100.10   2200
+
+$ BROKER=./firecracker-broker scripts/agent-vm.sh down 609be1ea4021ab41
+request timed out after 5s (DELETE /v1/vms/609be1ea4021ab41); the host may still have completed it - verify with 'list' or just re-run
+
+$ BROKER=./firecracker-broker scripts/agent-vm.sh down 609be1ea4021ab41   # re-run: down is idempotent (first attempt timed out after 5s)
+note: VM 609be1ea4021ab41 is not on the host anymore; cleaning up local state
+deleted 609be1ea4021ab41
+
+$ export MICROVMS_TOKEN="$(cat ~/.firecracker-broker/token)" && ./firecracker-broker list
+ID   NAME   STATE   OWNER   AGE   IP   SSH_PORT
+

@@ -1,0 +1,11 @@
+vm-report (built inside the VM)
+hostname: zcode-demo-sub1-example
+kernel:  6.1.102
+cpus:    1
+
+task a) count primes below 5000
+669 primes below 5000
+
+task b) C compiler check
+command -v cc gcc -> <none>
+no C compiler available

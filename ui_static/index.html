@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>microVM console</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>microVM console</h1>
+  <div id="stats" class="stats"></div>
+  <div class="head-actions">
+    <span id="model-badge" class="badge" title="OpenAI model used by the agent"></span>
+    <button id="sweep" class="ghost" title="Delete TTL-expired VMs, forget gone records">Sweep expired</button>
+    <button id="refresh">Refresh</button>
+  </div>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main class="grid">
+  <section class="panel">
+    <h2>VMs</h2>
+    <form id="newvm" class="newvm">
+      <input name="owner" id="f-owner" placeholder="owner (ui-…)" autocomplete="off">
+      <input name="purpose" placeholder="purpose" autocomplete="off">
+      <select name="ttl" title="time to live">
+        <option>15m</option>
+        <option selected>30m</option>
+        <option>1h</option>
+        <option>2h</option>
+        <option>6h</option>
+      </select>
+      <select name="cpus" title="vCPUs">
+        <option value="">cpus: auto</option>
+        <option>1</option><option>2</option><option>3</option><option>4</option>
+      </select>
+      <select name="mem_mib" title="memory MiB">
+        <option value="">mem: auto</option>
+        <option>256</option><option>512</option><option>1024</option><option>2048</option>
+      </select>
+      <button type="submit">Boot VM</button>
+    </form>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>name</th><th>owner</th><th>state</th><th>age</th><th>ttl</th><th>ip</th><th>size</th><th></th></tr>
+        </thead>
+        <tbody id="vmrows"><tr><td colspan="8" class="empty">loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel chatpanel">
+    <h2>Agent</h2>
+    <div id="chat" class="chatlog">
+      <div class="msg assistant">Ask me to boot VMs, run commands inside them, and tear them down — e.g. <em>"boot a VM, show me uname -a, then delete it"</em> or <em>"what's running?"</em></div>
+    </div>
+    <form id="chatform" class="chatform">
+      <input id="chatinput" placeholder="tell the agent what to do…" autocomplete="off" maxlength="2000">
+      <button id="sendbtn">Send</button>
+    </form>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -42,6 +42,9 @@ Commands:
   delete     delete a VM and drop its local record
   sweep      delete tracked VMs older than their TTL
   capacity   show host capacity
+  ui         web console: start/check/tear down VMs, with an
+             agent chat over any OpenAI-compatible API
+             (OPENAI_API_KEY, or OPENAI_BASE_URL for local servers)
 
 Every command accepts --url to override the host API base URL
 (default: $MICROVMS_URL or ` + defaultBaseURL + `).
@@ -80,6 +83,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdSweep(rest, stdout, stderr)
 	case "capacity":
 		return cmdCapacity(rest, stdout, stderr)
+	case "ui":
+		return cmdUI(rest, stdout, stderr)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0

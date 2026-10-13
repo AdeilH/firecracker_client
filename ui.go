@@ -122,7 +122,7 @@ func cmdUI(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return report(err, stderr)
 	}
-	mux.Handle("/", http.FileServer(http.FS(static)))
+	mux.Handle("/", noCache(http.FileServer(http.FS(static))))
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/vms", s.handleVMs)
 	mux.HandleFunc("/api/vms/", s.handleVMItem)
@@ -157,6 +157,15 @@ func logRequests(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			log.Printf("%s %s", r.Method, r.URL.Path)
 		}
+	})
+}
+
+// noCache keeps the console assets from being served stale: they are
+// embedded in the binary, so after a rebuild the browser must refetch them.
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -197,6 +206,13 @@ type vmView struct {
 	Age     string `json:"age"`
 	TTL     string `json:"ttl,omitempty"`
 	Tracked bool   `json:"tracked"`
+
+	// SSH access details for the copy-paste command; key is the display
+	// path (~-abbreviated) of the generated private key, empty when the
+	// key lives on another machine.
+	SSHUser string `json:"ssh_user,omitempty"`
+	SSHHost string `json:"ssh_host,omitempty"`
+	SSHKey  string `json:"ssh_key,omitempty"`
 }
 
 // opListMerged merges tracked records with live VMs. Tracked-but-missing VMs
@@ -221,17 +237,23 @@ func (s *uiServer) opListMerged() ([]vmView, error) {
 	}
 
 	now := time.Now()
+	fallbackHost := hostnameOf(s.client.BaseURL)
 	var views []vmView
 	for _, vm := range live {
 		v := vmView{
 			ID: vm.ID, Name: vm.Name, State: stateOr(vm.State, "unknown"),
 			IP: vm.IP, SSHPort: vm.SSHPort, VCPUs: vm.VCPUs, MemMiB: vm.MemMiB,
 		}
+		v.SSHUser = vm.SSHUser
+		if v.SSHUser == "" {
+			v.SSHUser = "root"
+		}
+		v.SSHHost = hostFromSSHCommand(vm.SSHCommand, fallbackHost)
 		if t, ok := ParseTime(vm.CreatedAt); ok {
 			v.Age = humanAge(now.Sub(t))
 		}
 		if rec, found := recByID[vm.ID]; found {
-			v.Owner, v.TTL, v.Tracked = rec.Owner, rec.TTL, true
+			v.Owner, v.TTL, v.Tracked, v.SSHKey = rec.Owner, rec.TTL, true, displayPath(rec.KeyPath)
 			delete(recByID, rec.ID)
 		}
 		views = append(views, v)
@@ -254,6 +276,27 @@ func stateOr(state, def string) string {
 		return def
 	}
 	return state
+}
+
+// hostnameOf extracts the host from a base URL, for the ssh fallback when
+// the host API does not advertise an ssh_command.
+func hostnameOf(baseURL string) string {
+	if u, err := url.Parse(baseURL); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	return ""
+}
+
+// displayPath abbreviates a path under the user's home directory with ~,
+// for ssh commands shown in the console.
+func displayPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+"/") {
+		return "~" + p[len(home):]
+	}
+	return p
 }
 
 type createParams struct {

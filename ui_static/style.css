@@ -171,3 +171,36 @@ td.empty { color: var(--dim); text-align: center; padding: 18px; }
   padding: 8px 10px;
 }
 .chatform input:focus, .newvm input:focus { outline: none; border-color: var(--accent); }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+/* higher specificity than .modal so the hidden state wins regardless of
+   rule order — without this the overlay renders on every page load */
+.modal.hidden { display: none; }
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  width: min(640px, calc(100vw - 40px));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.modal-box h3 { margin: 0 0 10px; font-size: 13px; color: var(--dim); }
+.modal-box pre {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.modal-box code { font: 12px var(--mono); color: var(--accent); white-space: pre; }
+.modal-actions { display: flex; gap: 8px; }
+.hint { margin: 10px 0 0; font-size: 11px; color: var(--dim); }

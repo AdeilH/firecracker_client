@@ -74,6 +74,9 @@ function renderVms(vms) {
     const power = v.state === "running"
       ? `<button data-act="stop" data-id="${esc(v.id)}">stop</button>`
       : (v.state === "stopped" ? `<button data-act="start" data-id="${esc(v.id)}">start</button>` : "");
+    const ssh = v.ssh_host && v.state !== "missing"
+      ? `<button data-act="ssh" data-id="${esc(v.id)}">ssh</button>`
+      : "";
     const del = mine || v.state === "missing"
       ? `<button class="danger" data-act="delete" data-id="${esc(v.id)}">delete</button>`
       : "";
@@ -86,9 +89,29 @@ function renderVms(vms) {
       <td class="mono-dim">${esc(v.ttl || "—")}</td>
       <td class="mono-dim">${esc(v.ip || "—")}${v.ssh_port ? ":" + v.ssh_port : ""}</td>
       <td class="mono-dim">${size}</td>
-      <td><div class="cell-actions">${power}${del}</div></td>
+      <td><div class="cell-actions">${ssh}${power}${del}</div></td>
     </tr>`;
   }).join("");
+}
+
+// --- ssh command box ---
+
+function sshCommand(v) {
+  const parts = ["ssh"];
+  if (v.ssh_key) parts.push(`-i ${v.ssh_key}`);
+  parts.push("-o StrictHostKeyChecking=no", "-o UserKnownHostsFile=/dev/null");
+  if (v.ssh_port) parts.push(`-p ${v.ssh_port}`);
+  parts.push(`${v.ssh_user || "root"}@${v.ssh_host}`);
+  return parts.join(" ");
+}
+
+function showSshModal(vm) {
+  $("ssh-title").textContent = `ssh into ${vm.name || vm.id}`;
+  $("ssh-cmd").textContent = sshCommand(vm);
+  $("ssh-note").textContent = vm.ssh_key
+    ? "Private key: " + vm.ssh_key + " (created with the VM, removed on delete)"
+    : "No key on this machine for this VM (created elsewhere) — you will need your own key.";
+  $("sshmodal").classList.remove("hidden");
 }
 
 $("vmrows").addEventListener("click", async (ev) => {
@@ -96,6 +119,10 @@ $("vmrows").addEventListener("click", async (ev) => {
   if (!btn) return;
   const { act, id } = btn.dataset;
   const vm = lastVms.find((v) => v.id === id);
+  if (act === "ssh") {
+    if (vm) showSshModal(vm);
+    return;
+  }
   if (act === "delete" && !confirm(`Delete ${vm ? vm.name : id} (${id})? The disk is wiped.`)) return;
   btn.disabled = true;
   try {
@@ -123,6 +150,54 @@ $("newvm").addEventListener("submit", async (ev) => {
     banner("create: " + e.message);
   }
   refresh();
+});
+
+$("ssh-close").addEventListener("click", () => $("sshmodal").classList.add("hidden"));
+$("sshmodal").addEventListener("click", (ev) => {
+  if (ev.target === $("sshmodal")) $("sshmodal").classList.add("hidden");
+});
+
+// copyText never hangs: the async clipboard API is raced against a timeout,
+// with an execCommand fallback and, as a last resort, text selection so the
+// user can press Ctrl+C manually.
+function copyText(text) {
+  const clipboard = (navigator.clipboard && navigator.clipboard.writeText)
+    ? navigator.clipboard.writeText(text)
+    : Promise.reject(new Error("no clipboard API"));
+  return Promise.race([
+    clipboard,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("clipboard timeout")), 800)),
+  ]).catch(() => new Promise((resolve, reject) => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (ok) {
+      resolve();
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents($("ssh-cmd"));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      reject(new Error("selected for manual copy"));
+    }
+  }));
+}
+
+$("ssh-copy").addEventListener("click", async () => {
+  const btn = $("ssh-copy");
+  try {
+    await copyText($("ssh-cmd").textContent);
+    btn.textContent = "Copied ✓";
+  } catch {
+    btn.textContent = "Press Ctrl+C";
+  }
+  setTimeout(() => { btn.textContent = "Copy command"; }, 1600);
 });
 
 $("refresh").addEventListener("click", refresh);

@@ -64,6 +64,18 @@
   </section>
 </main>
 
+<div id="sshmodal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="ssh-title">ssh into VM</h3>
+    <pre><code id="ssh-cmd"></code></pre>
+    <div class="modal-actions">
+      <button id="ssh-copy">Copy command</button>
+      <button id="ssh-close" class="ghost">Close</button>
+    </div>
+    <p id="ssh-note" class="hint"></p>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

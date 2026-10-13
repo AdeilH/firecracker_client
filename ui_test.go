@@ -277,6 +277,45 @@ func TestHostFromSSHCommand(t *testing.T) {
 	}
 }
 
+func TestUIListMergedSSHInfo(t *testing.T) {
+	broker, _ := newFakeBroker(t)
+	s := newTestUIServer(t, broker.URL)
+	if err := UpdateState(func(st *State) error {
+		st.VMs = []Record{{ID: "vm-fake1", Name: "ui-build-test", Owner: "ui-build",
+			KeyPath: filepath.Join(t.TempDir(), "vm-fake1.key")}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	vms, err := s.opListMerged()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v *vmView
+	for i := range vms {
+		if vms[i].ID == "vm-fake1" {
+			v = &vms[i]
+		}
+	}
+	if v == nil {
+		t.Fatal("vm-fake1 missing from merged view")
+	}
+	if v.SSHHost != "192.0.2.10" || v.SSHUser != "root" || v.SSHPort != 2200 {
+		t.Errorf("ssh endpoint wrong: %+v", v)
+	}
+	if v.SSHKey == "" || !strings.HasSuffix(v.SSHKey, "vm-fake1.key") {
+		t.Errorf("key path missing from view: %+v", v)
+	}
+
+	if got := displayPath(filepath.Join("srv", "keys", "x.key")); got != "srv/keys/x.key" {
+		t.Errorf("paths outside home must stay absolute, got %q", got)
+	}
+	if got := hostnameOf("http://192.168.100.7:8420"); got != "192.168.100.7" {
+		t.Errorf("hostnameOf wrong: %q", got)
+	}
+}
+
 func TestUIRunInVM(t *testing.T) {
 	broker, _ := newFakeBroker(t)
 	s := newTestUIServer(t, broker.URL)
